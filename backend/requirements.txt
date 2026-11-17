@@ -1,0 +1,6 @@
+Flask>=2.3
+Flask-Cors>=4.0
+Flask-Sock>=0.7
+simple-websocket>=1.1
+netifaces>=0.11
+aiortc>=1.14

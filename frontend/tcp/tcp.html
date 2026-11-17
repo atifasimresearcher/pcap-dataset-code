@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deepfake Capture Controller</title>
+    <link rel="stylesheet" href="./tcp.css" />
+  </head>
+
+  <body>
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="container">
+      <header class="header">
+        <h1>Deepfake Capture Controller</h1>
+        <p>Stream video files to the capture server and record the traffic as PCAP.</p>
+
+        <div class="mode-toggle">
+          <button class="mode-btn active" onclick="setMode('local')" id="modeLocal">Local network</button>
+          <button class="mode-btn" onclick="setMode('ngrok')" id="modeNgrok">Internet (ngrok)</button>
+        </div>
+
+        <div class="server-info">
+          <span>Connected to: <span id="serverDisplay">Loading…</span></span>
+          <span class="tooltip">(?)<span class="tooltiptext" id="tooltipText">Local network mode</span></span>
+        </div>
+      </header>
+
+      <section class="config-panel">
+        <div class="config-title">Server</div>
+        <div class="config-grid">
+          <div class="config-item">
+            <label for="serverIpInput">Server IP address</label>
+            <input type="text" id="serverIpInput" placeholder="127.0.0.1" value="127.0.0.1" />
+            <small>Use 127.0.0.1 if the server runs on this machine.</small>
+          </div>
+          <div class="config-item">
+            <label for="serverPortInput">Server port</label>
+            <input type="number" id="serverPortInput" placeholder="5001" value="5001" min="1024" max="65535" />
+            <small>Default is 5001.</small>
+          </div>
+          <div class="config-item">
+            <label for="ngrokUrlInput">ngrok URL</label>
+            <input type="text" id="ngrokUrlInput" placeholder="https://xxxxx.ngrok-free.app" />
+            <small>Only needed for internet mode.</small>
+          </div>
+        </div>
+        <div class="button-row">
+          <button class="btn btn-plain" onclick="updateServerConfig()">Save settings</button>
+          <button class="btn btn-plain" onclick="autoDetectServer()">Detect server</button>
+        </div>
+      </section>
+
+      <div class="two-column">
+        <section class="config-panel">
+          <div class="config-title">Device</div>
+          <div class="grid device-grid">
+            <div class="device-card mobile" data-device="mobile" onclick="selectDevice('mobile')">
+              <div class="device-badge">Selected</div>
+              <div class="device-title">Mobile</div>
+              <div class="device-desc">iPhone, Android</div>
+            </div>
+            <div class="device-card computer selected" data-device="computer" onclick="selectDevice('computer')">
+              <div class="device-badge">Selected</div>
+              <div class="device-title">Computer</div>
+              <div class="device-desc">Mac, Windows, Linux</div>
+            </div>
+            <div class="device-card tablet" data-device="tablet" onclick="selectDevice('tablet')">
+              <div class="device-badge">Selected</div>
+              <div class="device-title">Tablet</div>
+              <div class="device-desc">iPad, Android tablet</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="config-panel">
+          <div class="config-title">Dataset and network</div>
+          <div class="config-grid">
+            <div class="config-item">
+              <label for="datasetSelect">Dataset</label>
+              <select id="datasetSelect" onchange="saveDatasetSelection()">
+                <option value="hidf">HIDF</option>
+                <option value="sdfvd">SDFVD</option>
+                <option value="forensic">Forensic++</option>
+                <option value="manual-fake-2022">Manual Fake 2022</option>
+              </select>
+            </div>
+            <div class="config-item">
+              <label for="networkLocation">Network type</label>
+              <select id="networkLocation" onchange="saveNetworkLocation()">
+                <option value="jazz">JAZZ</option>
+                <option value="wifi">WIFI</option>
+              </select>
+              <small>Selected: <strong id="networkValue">JAZZ</strong></small>
+              <span id="networkIndicator" hidden></span>
+            </div>
+            <div class="config-item">
+              <label for="gpsLocation">GPS coordinates</label>
+              <input type="text" id="gpsLocation" placeholder="Latitude, longitude" />
+              <button class="btn btn-plain btn-small" onclick="getCurrentLocation()">Use current location</button>
+            </div>
+          </div>
+
+          <div class="network-info-panel" id="networkInfoPanel">
+            <div class="network-info-row">
+              <span class="network-label">Connection type</span>
+              <span class="network-value" id="connType">Detecting…</span>
+            </div>
+            <div class="network-info-row">
+              <span class="network-label">Downlink</span>
+              <span class="network-value" id="downlink">---</span>
+            </div>
+            <div class="network-info-row">
+              <span class="network-label">Round-trip time</span>
+              <span class="network-value" id="rtt">---</span>
+            </div>
+          </div>
+          <button class="btn btn-plain btn-block" onclick="detectNetworkInfo()">Refresh network info</button>
+        </section>
+      </div>
+
+      <section class="config-panel">
+        <div class="config-title">Capture settings</div>
+        <div class="config-grid">
+          <div class="config-item">
+            <label for="portInput">Port</label>
+            <input type="number" id="portInput" value="8080" min="1" max="65535" />
+            <div class="port-quick-select">
+              <button class="port-btn active" onclick="setPort(8080)">8080</button>
+            </div>
+          </div>
+          <div class="config-item">
+            <label for="videoTypeSelect">Video type</label>
+            <select id="videoTypeSelect">
+              <option value="real">Real</option>
+              <option value="fake">Fake</option>
+            </select>
+          </div>
+          <div class="config-item">
+            <label for="videoQuality">Quality</label>
+            <select id="videoQuality">
+              <option value="720p">720p</option>
+              <option value="480p">480p</option>
+              <option value="360p">360p</option>
+              <option value="original">Original</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="config-panel">
+        <div class="config-title">Stream one file</div>
+        <div class="file-row">
+          <input type="file" id="videoFile" accept="video/*" onchange="updateFileInfo()" />
+          <div class="file-info">
+            <div class="file-info-item">
+              <span class="file-info-label">File</span>
+              <span class="file-info-value" id="fileName">None</span>
+            </div>
+            <div class="file-info-item">
+              <span class="file-info-label">Size</span>
+              <span class="file-info-value" id="fileSize">-</span>
+            </div>
+            <div class="file-info-item">
+              <span class="file-info-label">Duration</span>
+              <span class="file-info-value" id="streamInfo">Select a video file</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-stream btn-block" onclick="startTrueStreaming()" id="streamBtn">Start streaming</button>
+      </section>
+
+      <section class="config-panel">
+        <div class="config-title">Stream multiple files</div>
+        <div class="file-row">
+          <input type="file" id="batchFiles" accept="video/*" multiple onchange="updateBatchFileList()" />
+          <div class="file-info">
+            <div class="file-info-item">
+              <span class="file-info-label">Files</span>
+              <span class="file-info-value" id="batchCount">0 files</span>
+            </div>
+            <div class="file-info-item">
+              <span class="file-info-label">Total size</span>
+              <span class="file-info-value" id="batchTotalSize">-</span>
+            </div>
+            <div class="file-info-item">
+              <span class="file-info-label">Estimated time</span>
+              <span class="file-info-value" id="batchEstTime">-</span>
+            </div>
+          </div>
+        </div>
+        <div id="batchFileList" class="batch-file-list" style="display: none"></div>
+        <div id="batchProgress" class="batch-progress">
+          <div class="batch-progress-head">
+            <span id="batchCurrentFile">Waiting…</span>
+            <span id="batchProgressPercent">0%</span>
+          </div>
+          <div class="batch-progress-bar" id="batchProgressBar"></div>
+        </div>
+        <button class="btn btn-batch btn-block" onclick="startBatchStreaming()" id="batchStreamBtn">Stream all selected files</button>
+        <button class="btn btn-danger btn-block" onclick="stopBatchStreaming()" id="stopBatchBtn" style="display: none">Stop batch</button>
+      </section>
+
+      <div class="action-buttons">
+        <button class="btn btn-primary" onclick="startCapture()" id="startBtn">Capture server videos</button>
+        <button class="btn btn-info" onclick="exportMetadata()" id="exportBtn">Export session metadata</button>
+        <button class="btn btn-warning" onclick="checkHealth()" id="healthBtn">Check server health</button>
+        <button class="btn btn-success" onclick="fetchInterfaces()" id="interfacesBtn">List interfaces</button>
+      </div>
+
+      <div class="stats-grid" id="statsGrid" style="display: none">
+        <div class="stat-card">
+          <div class="stat-value" id="chunkCount">0</div>
+          <div class="stat-label">Chunks sent</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="bytesSent">0 KB</div>
+          <div class="stat-label">Data sent</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="streamTime">0.0s</div>
+          <div class="stat-label">Elapsed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="packetRate">0</div>
+          <div class="stat-label">Chunks per second</div>
+        </div>
+      </div>
+
+      <section class="status-panel" id="statusPanel">
+        <div class="status-header">
+          <span class="status-title">Capture status</span>
+          <span class="status-badge" id="statusBadge">Ready</span>
+        </div>
+        <div class="log-controls">
+          <button class="log-btn clear" onclick="clearSavedLogs()">Clear logs</button>
+          <button class="log-btn download" onclick="downloadLogs()">Download logs</button>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="status-log" id="statusLog">
+          <div>Ready to stream.</div>
+        </div>
+        <div class="capture-id" id="captureIdDisplay"></div>
+      </section>
+
+      <section class="status-panel" id="interfacesPanel" style="display: none">
+        <div class="status-header">
+          <span class="status-title">Network interfaces</span>
+          <span class="status-badge">Detected</span>
+        </div>
+        <div class="status-log" id="interfacesLog" style="max-height: 150px">Loading…</div>
+      </section>
+    </div>
+
+    <script>
+      async function startTrueStreaming() {
+        const fileInput = document.getElementById("videoFile");
+        if (!fileInput.files || !fileInput.files.length) {
+          showToast("Select a video file first", "error");
+          addToLog("No file selected", "error");
+          return;
+        }
+
+        const file = fileInput.files[0];
+        const device = selectedDevice;
+        const port = document.getElementById("portInput").value;
+        const videoType = document.getElementById("videoTypeSelect").value;
+        const duration = detectedDuration > 0 ? detectedDuration : 3;
+
+        addToLog(`Starting stream: ${file.name}`, "stream");
+        addToLog(
+          `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB, duration: ${duration}s`,
+          "info",
+        );
+        addToLog(`Device: ${device}, port: ${port}, type: ${videoType}`, "info");
+
+        document.getElementById("streamBtn").disabled = true;
+        document.getElementById("streamBtn").innerHTML =
+          '<span class="spinner"></span> Streaming…';
+        updateStatusBadge("Streaming");
+
+        streamingActive = true;
+        streamStartTime = Date.now();
+        chunkCount = 0;
+        totalBytesSent = 0;
+        document.getElementById("statsGrid").style.display = "grid";
+
+        const wsUrl = getWebSocketUrl();
+        addToLog(`Connecting to ${wsUrl}…`, "info");
+
+        let captureStarted = false;
+        let completed = false;
+
+        const timeout = setTimeout(
+          () => {
+            if (!completed) {
+              addToLog("Timed out waiting for capture to finish", "error");
+              cleanupStreaming();
+            }
+          },
+          duration * 1000 + 30000,
+        );
+
+        try {
+          streamingSocket = new WebSocket(wsUrl);
+
+          streamingSocket.onopen = () => {
+            addToLog("WebSocket connected", "success");
+            streamingSocket.send(
+              JSON.stringify({
+                type: "start_stream",
+                device: device,
+                dataset: selectedDataset,
+                port: parseInt(port),
+                video_type: videoType,
+                network: selectedNetwork,
+                duration: duration,
+                filename: file.name,
+                client_ip: "auto-detect",
+              }),
+            );
+            addToLog("Start command sent", "stream");
+          };
+
+          streamingSocket.onmessage = async (event) => {
+            let resp;
+            try {
+              resp = JSON.parse(event.data);
+            } catch {
+              return;
+            }
+
+            if (resp.type === "capture_started") {
+              captureStarted = true;
+              addToLog(`Capture started. PCAP: ${resp.pcap_file}`, "success");
+              document.getElementById("captureIdDisplay").textContent =
+                `PCAP: ${resp.pcap_file}`;
+              await streamFileToSocketSingle(file, duration);
+            } else if (resp.type === "capture_complete") {
+              clearTimeout(timeout);
+              completed = true;
+              addToLog(
+                `Stream complete. PCAP: ${resp.pcap_file} (${(resp.size_bytes / 1024).toFixed(1)} KB)`,
+                "success",
+              );
+              showToast("Stream complete", "success");
+              updateStatusBadge("Completed");
+              updateProgress(100);
+              cleanupStreaming();
+            } else if (resp.type === "error") {
+              addToLog(`Server error: ${resp.message}`, "error");
+              cleanupStreaming();
+            }
+          };
+
+          streamingSocket.onerror = () => {
+            addToLog("WebSocket error", "error");
+            cleanupStreaming();
+          };
+
+          streamingSocket.onclose = () => {
+            if (!completed && captureStarted) {
+              addToLog("WebSocket closed unexpectedly", "warning");
+              cleanupStreaming();
+            }
+          };
+        } catch (err) {
+          addToLog(`Connection failed: ${err.message}`, "error");
+          cleanupStreaming();
+        }
+      }
+
+      async function streamFileToSocketSingle(file, durationSeconds) {
+        const totalSize = file.size;
+        const bytesPerSecond = totalSize / durationSeconds;
+        let offset = 0;
+        const startTime = Date.now();
+
+        function sendNext() {
+          if (!streamingActive || streamingSocket.readyState !== WebSocket.OPEN)
+            return;
+
+          const elapsedMs = Date.now() - startTime;
+          const shouldHaveSent = (elapsedMs / 1000) * bytesPerSecond;
+
+          if (offset > shouldHaveSent && offset < totalSize) {
+            const waitMs = ((offset - shouldHaveSent) / bytesPerSecond) * 1000;
+            setTimeout(sendNext, Math.max(waitMs, 10));
+            return;
+          }
+
+          if (offset >= totalSize) {
+            streamingSocket.send(
+              JSON.stringify({
+                type: "eof",
+                total_chunks: chunkCount,
+                total_bytes: totalBytesSent,
+              }),
+            );
+            addToLog(
+              `EOF sent: ${chunkCount} chunks, ${(totalBytesSent / 1024).toFixed(1)} KB`,
+              "success",
+            );
+            return;
+          }
+
+          const size = Math.min(CHUNK_SIZE, totalSize - offset);
+          const blob = file.slice(offset, offset + size);
+          const reader = new FileReader();
+
+          reader.onload = (e) => {
+            if (streamingSocket.readyState === WebSocket.OPEN) {
+              streamingSocket.send(e.target.result);
+              chunkCount++;
+              totalBytesSent += size;
+              offset += size;
+
+              if (chunkCount % 50 === 0) {
+                const elapsed = (Date.now() - startTime) / 1000;
+                document.getElementById("chunkCount").textContent = chunkCount;
+                document.getElementById("bytesSent").textContent =
+                  (totalBytesSent / 1024).toFixed(1) + " KB";
+                document.getElementById("streamTime").textContent =
+                  elapsed.toFixed(1) + "s";
+                document.getElementById("packetRate").textContent = Math.round(
+                  chunkCount / elapsed,
+                );
+                updateProgress((offset / totalSize) * 100);
+                addToLog(
+                  `Progress: ${Math.round((offset / totalSize) * 100)}%, ${chunkCount} chunks`,
+                  "stream",
+                );
+              }
+              setTimeout(sendNext, 0);
+            }
+          };
+          reader.readAsArrayBuffer(blob);
+        }
+
+        sendNext();
+      }
+
+      function cleanupStreaming() {
+        streamingActive = false;
+        if (streamingSocket) {
+          try {
+            streamingSocket.close();
+          } catch (e) {}
+          streamingSocket = null;
+        }
+        document.getElementById("streamBtn").disabled = false;
+        document.getElementById("streamBtn").innerHTML = "Start streaming";
+        document.getElementById("statsGrid").style.display = "none";
+        if (!batchActive) updateStatusBadge("Ready");
+      }
+
+      async function startCapture() {
+        const port = document.getElementById("portInput").value;
+        const videoType = document.getElementById("videoTypeSelect").value;
+        addToLog(
+          `Starting server capture on ${selectedDevice}, port ${port}, type ${videoType}`,
+          "info",
+        );
+
+        try {
+          const response = await fetch(`${getBaseUrl()}/${selectedDevice}`, {
+            method: "POST",
+            headers: getHeaders(),
+            body: JSON.stringify({ port: parseInt(port), type: videoType }),
+          });
+          const data = await response.json();
+          if (response.ok) {
+            addToLog(`Capture started. ID: ${data.capture_id}`, "success");
+            showToast("Capture started", "success");
+          } else {
+            addToLog(`Failed: ${data.error}`, "error");
+          }
+        } catch (err) {
+          addToLog(`Error: ${err.message}`, "error");
+        }
+      }
+
+      function updateServerConfig() {
+        const ipInput = document.getElementById("serverIpInput");
+        const portInput = document.getElementById("serverPortInput");
+        const ngrokInput = document.getElementById("ngrokUrlInput");
+
+        if (ipInput) localStorage.setItem("SERVER_IP", ipInput.value);
+        if (portInput) localStorage.setItem("SERVER_PORT", portInput.value);
+        if (ngrokInput && ngrokInput.value)
+          localStorage.setItem("NGROK_URL", ngrokInput.value);
+
+        location.reload();
+      }
+
+      async function autoDetectServer() {
+        addToLog("Looking for the server…", "info");
+
+        try {
+          const response = await fetch("http://127.0.0.1:5001/health");
+          if (response.ok) {
+            const data = await response.json();
+            if (data.network_interfaces && data.network_interfaces.length > 0) {
+              const detectedIp = data.network_interfaces[0].ip;
+              localStorage.setItem("SERVER_IP", detectedIp);
+              addToLog(`Server found at ${detectedIp}:5001`, "success");
+              location.reload();
+              return;
+            }
+          }
+        } catch (e) {}
+
+        addToLog("Server not found. Enter the IP address manually.", "error");
+      }
+
+      window.startTrueStreaming = startTrueStreaming;
+      window.stopStreaming = stopStreaming;
+      window.startBatchStreaming = startBatchStreaming;
+      window.stopBatchStreaming = stopBatchStreaming;
+      window.updateServerConfig = updateServerConfig;
+      window.autoDetectServer = autoDetectServer;
+      window.exportMetadata = exportMetadata;
+      window.checkHealth = checkHealth;
+      window.fetchInterfaces = fetchInterfaces;
+      window.startCapture = startCapture;
+    </script>
+    <script src="./tcp.js"></script>
+  </body>
+</html>

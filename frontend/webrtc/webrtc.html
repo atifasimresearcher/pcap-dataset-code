@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebRTC Batch Capture</title>
+    <link rel="stylesheet" href="./webrtc.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <h1>WebRTC batch capture</h1>
+        <p>Saves to device / dataset / fake-or-real / webrtc / network</p>
+      </header>
+
+      <section class="card">
+        <div class="config-row">
+          <div class="grow">
+            <label for="backendUrl">
+              Backend server URL
+              <span class="badge-pill mode-local" id="modeBadge">LOCAL</span>
+            </label>
+            <input
+              type="text"
+              id="backendUrl"
+              placeholder="http://localhost:5001 or https://xxxx.ngrok-free.app"
+            />
+            <small>
+              Local: <code>http://localhost:5001</code>. ngrok:
+              <code>https://xxxx.ngrok-free.app</code>
+            </small>
+          </div>
+          <button id="connectBtn" class="btn-primary">Connect</button>
+          <div id="connectionStatus" class="connection-pill disconnected">Disconnected</div>
+        </div>
+      </section>
+
+      <!-- Hidden on small screens by CSS to save CPU -->
+      <section class="preview-panel" id="previewPanel">
+        <h2>
+          Live preview
+          <button class="perf-toggle" id="previewToggle" onclick="togglePreview()">Hide preview</button>
+          <span class="hint">Hide it to reduce CPU use on a tablet.</span>
+        </h2>
+        <div class="preview-grid" id="previewGrid">
+          <div class="preview-box">
+            <div class="preview-label">Source video</div>
+            <video id="previewVideo" controls muted playsinline></video>
+            <div class="preview-status idle" id="videoStatus">Idle: no file loaded</div>
+          </div>
+          <div class="preview-box">
+            <div class="preview-label">Canvas sent over WebRTC</div>
+            <canvas id="previewCanvas" width="480" height="270"></canvas>
+            <div class="preview-status idle" id="canvasStatus">Idle: waiting for stream</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="main-grid">
+        <section class="card">
+          <h2>Videos</h2>
+          <div class="webrtc-info">
+            <strong>How it works</strong>
+            Each video plays in the source preview and is drawn onto the canvas. The canvas
+            stream is sent over WebRTC while tcpdump captures the SRTP packets on en0.
+          </div>
+          <div class="form-group">
+            <label for="videoFiles">Video files</label>
+            <input type="file" id="videoFiles" multiple accept="video/*" />
+            <small>You can select several .mp4, .webm or .mov files.</small>
+          </div>
+          <div class="form-group">
+            <label for="streamSource">Stream source</label>
+            <select id="streamSource">
+              <option value="camera">Camera (ignores uploaded files)</option>
+              <option value="screen">Screen share (ignores uploaded files)</option>
+              <option value="canvas" selected>Uploaded videos (uses selected files)</option>
+            </select>
+          </div>
+          <div class="file-list" id="fileList"></div>
+          <div class="button-group">
+            <button class="btn-primary" onclick="startBatchCapture()" id="startBtn">Start batch capture</button>
+            <button class="btn-secondary" onclick="clearFileList()">Clear files</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Capture settings</h2>
+
+          <div class="form-group">
+            <label for="deviceType">Device</label>
+            <select id="deviceType" onchange="updatePathPreview()">
+              <option value="computer">Computer</option>
+              <option value="mobile">Mobile</option>
+              <option value="tablet">Tablet</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="datasetType">Dataset</label>
+            <select id="datasetType" onchange="updatePathPreview()">
+              <option value="hidf">HIDF</option>
+              <option value="sdfvd">SDFVD</option>
+              <option value="forensic++">Forensic++</option>
+              <option value="manual-fake-2022">Manual-Fake-2022</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="videoType">Video type</label>
+            <select id="videoType" onchange="updatePathPreview()">
+              <option value="fake">Fake (deepfake)</option>
+              <option value="real">Real (control)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="networkType">Network</label>
+            <select id="networkType" onchange="updatePathPreview()">
+              <option value="wifi">WiFi</option>
+              <option value="jazz">Jazz (mobile 4G)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="captureDuration">Capture duration (seconds)</label>
+            <input type="number" id="captureDuration" value="10" min="3" max="300" />
+            <small>Set this to the full video length for a complete capture.</small>
+          </div>
+
+          <div class="path-preview" id="pathPreview">
+            packet-dataset / computer / hidf / fake / webrtc / wifi /
+          </div>
+
+          <div class="connection-status">
+            <div class="status-indicator status-disconnected" id="connStatus"></div>
+            <span id="connText">Waiting for files…</span>
+          </div>
+        </section>
+
+        <section class="card batch-section">
+          <h2>Batch progress</h2>
+          <div class="stats">
+            <div class="stat-box"><div class="stat-value" id="totalFiles">0</div><div class="stat-label">Total files</div></div>
+            <div class="stat-box"><div class="stat-value" id="completedFiles">0</div><div class="stat-label">Completed</div></div>
+            <div class="stat-box"><div class="stat-value" id="failedFiles">0</div><div class="stat-label">Failed</div></div>
+            <div class="stat-box"><div class="stat-value" id="totalSize">0 MB</div><div class="stat-label">Total PCAP size</div></div>
+          </div>
+          <div class="progress-list" id="progressList"></div>
+          <div class="log-container" id="logContainer"></div>
+        </section>
+      </div>
+    </div>
+
+    <script src="./webrtc.js"></script>
+  </body>
+</html>
